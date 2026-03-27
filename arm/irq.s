@@ -86,10 +86,11 @@ TEXT ·irqHandler(SB),NOSPLIT|NOFRAME,$0
 	CALL	os∕signal·Relay(SB)
 	ADD	$8, R13, R13
 
-	// the IRQ handling goroutine is expected to unmask IRQs
+	// Mask IRQs in SPSR so the exception return restores CPSR with
+	// I-bit set, preventing re-entry before ServiceInterrupts runs.
 	WORD	$0xe14f0000			// mrs r0, SPSR
-	ORR	$1<<7, R0			// mask IRQs
-	WORD	$0xe169f000			// msr SPSR, r0
+	ORR	$1<<7, R0			// set I bit (mask IRQs)
+	WORD	$0xe169f000			// msr SPSR_fc, r0
 done:
 	// restore caller registers
 	MOVM.IA.W	(R13), [R0-R12, R14]	// pop {r0-r12, r14}
