@@ -6,7 +6,7 @@
 // Use of this source code is governed by the license
 // that can be found in the LICENSE file.
 
-//go:build !arm.6
+//go:build !arm.6 || softfloat
 
 package arm
 
@@ -17,8 +17,10 @@ import (
 // Init takes care of the lower level initialization triggered before runtime
 // setup (pre World start).
 //
-// On GOARM=5 (soft-float ABI) no VFP initialization is required at pre-World
-// start; any board-level VFP enable happens later in Hwinit1 if needed.
+// On GOARM=5 (soft-float ABI) or softfloat builds (GOARM=6,softfloat /
+// GOARM=7,softfloat with -tags softfloat) no VFP initialization is required
+// at pre-World start. Cores without VFP (e.g. ARM1176JZS on AST2500) would
+// fault on vfp_enable; softfloat Go code never issues VFP instructions.
 //
 //go:linkname Init runtime/goos.Hwinit0
 func Init() {}
