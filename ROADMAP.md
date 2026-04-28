@@ -369,10 +369,10 @@ qemu-system-arm \
   -machine ast2600-evb \
   -cpu cortex-a7 \
   -m 512M \
-  -nographic \
-  -serial null \
+  -display none \
+  -monitor none \
   -serial stdio \
-  -kernel ast2600test.elf \
+  -kernel myapp.elf \
   -no-reboot
 ```
 
@@ -1089,8 +1089,8 @@ src/commands/generate.rs     (T0.1 — --package, --reg-import CLI args)
 | SoC | Command |
 |---|---|
 | AST2400 | `GOOS=tamago GOARCH=arm GOARM=5 go tool tamago build -tags linkcpuinit -ldflags "-T 0x40010000 -R 0x1000" ./cmd/ast2400test/` |
-| AST2500 | `GOOS=tamago GOARCH=arm GOARM=6,softfloat go tool tamago build -tags linkcpuinit,softfloat -ldflags "-T 0x80010000 -R 0x1000" ./cmd/ast2500test/` |
-| AST2600 | `GOOS=tamago GOARCH=arm GOARM=7,softfloat go tool tamago build -tags linkcpuinit,softfloat -ldflags "-T 0x80010000 -R 0x1000" ./cmd/ast2600test/` |
+| AST2500 | `GOOS=tamago GOARCH=arm GOARM="6,softfloat" go tool tamago build -tags linkcpuinit,softfloat -ldflags "-T 0x80010000 -R 0x1000" ./cmd/ast2500test/` |
+| AST2600 | `GOOS=tamago GOARCH=arm GOARM="7,softfloat" go tool tamago build -tags linkcpuinit,softfloat -ldflags "-T 0x80010000 -R 0x1000" ./cmd/ast2600test/` |
 | AST2700 | `GOOS=tamago GOARCH=arm64 go tool tamago build -tags linkcpuinit -ldflags "-T 0x400010000 -R 0x1000" ./cmd/ast2700test/` |
 
 ---

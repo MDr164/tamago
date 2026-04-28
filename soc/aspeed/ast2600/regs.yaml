@@ -1,0 +1,397 @@
+# ASPEED AST2600 register definitions for TamaGo boot support.
+#
+# References:
+#   AST2600 A3 Datasheet v1.6 (Jul 2024) — ast2600v16.md
+#   ARM Cortex-A7 MPCore Technical Reference Manual (GIC addresses)
+#
+# Only registers required for the minimal boot path are defined:
+# SCU (clock gates, silicon revision, RNG, HW straps), UART5 (16550 console),
+# and Timer Controller (nanotime + scheduler tick).
+# The GIC is handled by the existing arm/gic package; only its base address
+# constant is emitted via the device section.
+
+# ---------------------------------------------------------------------------
+# SCU — System Control Unit
+# Base: 0x1E6E2000, Size: 4 KB
+# ---------------------------------------------------------------------------
+
+block/Scu:
+  description: "AST2600 System Control Unit"
+  items:
+    - name: PROTECTION_KEY
+      description: "SCU000 Protection Key Register. Write 0x1688A8A8 to unlock, any other value to lock. Read-back 0x1=unlocked."
+      byte_offset: 0x000
+      access: ReadWrite
+      bit_size: 32
+
+    - name: REV_ID
+      description: "SCU004 Silicon Revision ID Register. Bits[23:16]=HW revision (0x00=A0, 0x01=A1, 0x02=A2, 0x03=A3)."
+      byte_offset: 0x004
+      access: Read
+      bit_size: 32
+      fieldset: ScuRevId
+
+    - name: REV_ID2
+      description: "SCU014 Silicon Revision ID Register 2. Bits[23:16]=secondary HW revision."
+      byte_offset: 0x014
+      access: Read
+      bit_size: 32
+      fieldset: ScuRevId
+
+    - name: CLK_STOP_SET1
+      description: "SCU080 Clock Stop Control Register Set 1. Write 1 to stop clock. Use CLK_STOP_CLR1 to restart. Bit15=UART5CLK, Bit13=HACE/RNG clock."
+      byte_offset: 0x080
+      access: ReadWrite
+      bit_size: 32
+      fieldset: ScuClkStop1
+
+    - name: CLK_STOP_CLR1
+      description: "SCU084 Clock Stop Control Clear Register 1. Write 1 to clear (restart) the corresponding clock stop bit in SCU080."
+      byte_offset: 0x084
+      access: Write
+      bit_size: 32
+      fieldset: ScuClkStop1
+
+    - name: HW_STRAP1
+      description: "SCU500 Hardware Strap 1 Register. Bits[10:8]=CPU frequency selection (000=1.2GHz, 001=1.6GHz, 100+=800MHz)."
+      byte_offset: 0x500
+      access: Read
+      bit_size: 32
+      fieldset: ScuHwStrap1
+
+    - name: RNG1_CTRL
+      description: "SCU520 RNG Unit 1 Control Register. Bit0=disable(0=enabled). New random value every ~1 µs."
+      byte_offset: 0x520
+      access: ReadWrite
+      bit_size: 32
+      fieldset: ScuRngCtrl
+
+    - name: RNG1_DATA
+      description: "SCU524 RNG Unit 1 Data Output. Read to get 32-bit random number. No ready flag; new value every 1 µs."
+      byte_offset: 0x524
+      access: Read
+      bit_size: 32
+
+    - name: RNG2_CTRL
+      description: "SCU530 RNG Unit 2 Control Register. Bit31=data_valid(RO, cleared by reading RNG2_DATA). Bit0=disable(0=enabled)."
+      byte_offset: 0x530
+      access: ReadWrite
+      bit_size: 32
+      fieldset: ScuRng2Ctrl
+
+    - name: RNG2_DATA
+      description: "SCU534 RNG Unit 2 Data Output. Reading this register clears the data_valid bit (SCU530[31])."
+      byte_offset: 0x534
+      access: Read
+      bit_size: 32
+
+# ---------------------------------------------------------------------------
+# UART5 — 16550-compatible UART (BMC console)
+# Base: 0x1E784000, Size: 4 KB
+# Clock source default: 24 MHz / 13 = ~1.846 MHz UART ref clock
+# For 115200 baud: divisor = 1846153 / (16 * 115200) = 1 → DLL=1, DLH=0
+# ---------------------------------------------------------------------------
+
+block/Uart:
+  description: "16550-compatible UART (AST2600 UART5 console)"
+  items:
+    - name: RBR
+      description: "Receive Buffer Register (DLAB=0, read). Contains received byte."
+      byte_offset: 0x00
+      access: Read
+      bit_size: 32
+
+    - name: THR
+      description: "Transmitter Holding Register (DLAB=0, write). Write byte to transmit."
+      byte_offset: 0x00
+      access: Write
+      bit_size: 32
+
+    - name: IER
+      description: "Interrupt Enable Register (DLAB=0). Bit0=RxDataAvail, Bit1=TxEmpty, Bit2=RxLineStatus, Bit3=ModemStatus."
+      byte_offset: 0x04
+      access: ReadWrite
+      bit_size: 32
+
+    - name: IIR
+      description: "Interrupt Identity Register (read). Bit0=0 means interrupt pending. Bits[3:1]=interrupt type."
+      byte_offset: 0x08
+      access: Read
+      bit_size: 32
+
+    - name: FCR
+      description: "FIFO Control Register (write). Bit0=FIFO enable, Bit1=Rx FIFO reset, Bit2=Tx FIFO reset."
+      byte_offset: 0x08
+      access: Write
+      bit_size: 32
+
+    - name: LCR
+      description: "Line Control Register. Bits[1:0]=word length(11=8bit), Bit2=stop bits, Bits[5:3]=parity, Bit7=DLAB."
+      byte_offset: 0x0C
+      access: ReadWrite
+      bit_size: 32
+      fieldset: UartLcr
+
+    - name: MCR
+      description: "Modem Control Register."
+      byte_offset: 0x10
+      access: ReadWrite
+      bit_size: 32
+
+    - name: LSR
+      description: "Line Status Register. Bit0=RxDataReady, Bit5=TxHoldingEmpty(THR empty), Bit6=TxEmpty."
+      byte_offset: 0x14
+      access: Read
+      bit_size: 32
+      fieldset: UartLsr
+
+# ---------------------------------------------------------------------------
+# Timer Controller
+# Base: 0x1E782000, Size: 4 KB
+# 8 independent 32-bit decrement counters. TMC30 is the shared control register.
+# Timer N base offset: N=1→0x00, N=2→0x10, N=3→0x20, N=4→0x40
+# ---------------------------------------------------------------------------
+
+block/Timer:
+  description: "AST2600 Timer Controller. 8 decrement timers; clock = PCLK or 1 MHz. Timer N at byte_offset (N-1)*0x10 (N=1..3), then 0x40+(N-4)*0x10 for N=4..8."
+  items:
+    # Timer 1
+    - name: T1_STATUS
+      description: "Timer 1 Counter Status Register. Current countdown value. Also writable to set initial value."
+      byte_offset: 0x00
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_RELOAD
+      description: "Timer 1 Counter Reload Value. Loaded when counter reaches 0."
+      byte_offset: 0x04
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_MATCH1
+      description: "Timer 1 First Match Register. Set to 0xFFFFFFFF to disable match interrupt."
+      byte_offset: 0x08
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_MATCH2
+      description: "Timer 1 Second Match Register. Set to 0xFFFFFFFF to disable match interrupt."
+      byte_offset: 0x0C
+      access: ReadWrite
+      bit_size: 32
+
+    # Timer 2
+    - name: T2_STATUS
+      description: "Timer 2 Counter Status Register."
+      byte_offset: 0x10
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_RELOAD
+      description: "Timer 2 Counter Reload Value."
+      byte_offset: 0x14
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_MATCH1
+      description: "Timer 2 First Match Register."
+      byte_offset: 0x18
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_MATCH2
+      description: "Timer 2 Second Match Register."
+      byte_offset: 0x1C
+      access: ReadWrite
+      bit_size: 32
+
+    # Shared control
+    - name: CTRL
+      description: "TMC30 Timer Control Register. 4 bits per timer (timer N at bit[4*(N-1)]): bit+0=enable, bit+1=1MHz_clock_sel, bit+2=overflow_irq_en, bit+3=wdt_reset_en. Write 1 to set; use CTRL_CLR to clear."
+      byte_offset: 0x30
+      access: ReadWrite
+      bit_size: 32
+      fieldset: TimerCtrl
+
+    - name: IRQ_STATUS
+      description: "TMC34 Timer Interrupt Status Register. Bit N-1 = Timer N overflow interrupt (write 1 to clear)."
+      byte_offset: 0x34
+      access: ReadWrite
+      bit_size: 32
+
+    - name: CTRL_CLR
+      description: "TMC3C Timer Control Clear Register. Write 1 to clear corresponding bits in CTRL (TMC30). Used to disable/stop timers."
+      byte_offset: 0x3C
+      access: Write
+      bit_size: 32
+      fieldset: TimerCtrl
+
+# ---------------------------------------------------------------------------
+# Fieldsets
+# ---------------------------------------------------------------------------
+
+fieldset/ScuRevId:
+  description: "SCU Silicon Revision ID Register fields"
+  bit_size: 32
+  fields:
+    - name: HW_REV
+      description: "Hardware revision ID. 0x00=A0, 0x01=A1, 0x02=A2, 0x03=A3."
+      bit_offset: 16
+      bit_size: 8
+
+fieldset/ScuClkStop1:
+  description: "SCU Clock Stop Control Register 1 fields"
+  bit_size: 32
+  fields:
+    - name: HACE
+      description: "Hash and Crypto Engine (HACE) clock stop. 1=stopped, 0=running."
+      bit_offset: 13
+      bit_size: 1
+    - name: UART5
+      description: "UART5 clock stop. 0=running (default), 1=stopped."
+      bit_offset: 15
+      bit_size: 1
+
+fieldset/ScuHwStrap1:
+  description: "SCU Hardware Strap 1 register fields"
+  bit_size: 32
+  fields:
+    - name: CPU_FREQ_SEL
+      description: "CPU frequency selection. 0b000/0b010=1.2GHz, 0b001/0b011=1.6GHz, 0b100+=800MHz."
+      bit_offset: 8
+      bit_size: 3
+
+fieldset/ScuRngCtrl:
+  description: "SCU RNG1 Control Register fields"
+  bit_size: 32
+  fields:
+    - name: DISABLE
+      description: "RNG disable control. 0=enabled (default), 1=disabled."
+      bit_offset: 0
+      bit_size: 1
+
+fieldset/ScuRng2Ctrl:
+  description: "SCU RNG2 Control Register fields"
+  bit_size: 32
+  fields:
+    - name: DATA_VALID
+      description: "Random data valid flag (RO). Set by hardware when data is ready. Cleared by reading RNG2_DATA."
+      bit_offset: 31
+      bit_size: 1
+    - name: DISABLE
+      description: "RNG disable control. 0=enabled (default), 1=disabled."
+      bit_offset: 0
+      bit_size: 1
+
+fieldset/UartLcr:
+  description: "UART Line Control Register fields"
+  bit_size: 32
+  fields:
+    - name: WORD_LEN
+      description: "Word length. 0b11=8 bits, 0b10=7 bits, 0b01=6 bits, 0b00=5 bits."
+      bit_offset: 0
+      bit_size: 2
+    - name: STOP_BITS
+      description: "Stop bits. 0=1 stop bit, 1=2 stop bits."
+      bit_offset: 2
+      bit_size: 1
+    - name: PARITY_EN
+      description: "Parity enable. 0=no parity, 1=parity enabled."
+      bit_offset: 3
+      bit_size: 1
+    - name: DLAB
+      description: "Divisor Latch Access Bit. 1=access DLL/DLH baud rate divisors at offsets 0x00/0x04."
+      bit_offset: 7
+      bit_size: 1
+
+fieldset/UartLsr:
+  description: "UART Line Status Register fields"
+  bit_size: 32
+  fields:
+    - name: RX_READY
+      description: "Receive data ready. 1=data available in receive buffer."
+      bit_offset: 0
+      bit_size: 1
+    - name: TX_HOLD_EMPTY
+      description: "Transmitter holding register empty. 1=THR is empty, safe to write next byte."
+      bit_offset: 5
+      bit_size: 1
+    - name: TX_EMPTY
+      description: "Transmitter empty. 1=both THR and shift register are empty."
+      bit_offset: 6
+      bit_size: 1
+
+fieldset/TimerCtrl:
+  description: "Timer Control Register fields (4 bits per timer)"
+  bit_size: 32
+  fields:
+    - name: T1_EN
+      description: "Timer 1 enable. 1=running, 0=stopped."
+      bit_offset: 0
+      bit_size: 1
+    - name: T1_1MHZ
+      description: "Timer 1 clock select. 0=PCLK, 1=1 MHz fixed clock."
+      bit_offset: 1
+      bit_size: 1
+    - name: T1_OVF_IRQ
+      description: "Timer 1 overflow interrupt enable."
+      bit_offset: 2
+      bit_size: 1
+    - name: T1_WDT_RST
+      description: "Timer 1 trigger watchdog reset on overflow."
+      bit_offset: 3
+      bit_size: 1
+    - name: T2_EN
+      description: "Timer 2 enable. 1=running, 0=stopped."
+      bit_offset: 4
+      bit_size: 1
+    - name: T2_1MHZ
+      description: "Timer 2 clock select. 0=PCLK, 1=1 MHz fixed clock."
+      bit_offset: 5
+      bit_size: 1
+    - name: T2_OVF_IRQ
+      description: "Timer 2 overflow interrupt enable."
+      bit_offset: 6
+      bit_size: 1
+    - name: T2_WDT_RST
+      description: "Timer 2 trigger watchdog reset on overflow."
+      bit_offset: 7
+      bit_size: 1
+
+# ---------------------------------------------------------------------------
+# Device — AST2600 peripheral instances and interrupt assignments
+# ---------------------------------------------------------------------------
+
+device/Ast2600:
+  peripherals:
+    - name: SCU
+      description: "System Control Unit"
+      base_address: 0x1E6E2000
+      block: Scu
+    - name: UART5
+      description: "UART5 (ARM console, 16550-compatible)"
+      base_address: 0x1E784000
+      block: Uart
+    - name: TIMER
+      description: "Timer Controller 1"
+      base_address: 0x1E782000
+      block: Timer
+    - name: GIC
+      description: "Generic Interrupt Controller distributor base (GICD=BASE+0x1000, GICC=BASE+0x2000)"
+      base_address: 0x40460000
+  interrupts:
+    - name: UART5
+      description: "UART5 (GIC SPI 8)"
+      value: 40
+    - name: HACE
+      description: "Hash and Crypto Engine / TRNG (GIC SPI 4)"
+      value: 36
+    - name: TIMER1
+      description: "Timer 1 overflow (GIC SPI 16)"
+      value: 48
+    - name: TIMER2
+      description: "Timer 2 overflow (GIC SPI 17)"
+      value: 49
+    - name: WDT
+      description: "Watchdog timer alarm (GIC SPI 24)"
+      value: 56
