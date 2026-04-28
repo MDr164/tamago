@@ -62,6 +62,11 @@ type CPU struct {
 	// GIC CPU interface base address
 	gicc uint32
 
+	// NoVBAR disables VBAR/MVBAR writes during initVectorTable,
+	// for cores where exception vectors are at a fixed address
+	// (e.g. ARM926EJ-S, ARM1176JZS).
+	NoVBAR bool
+
 	// vector base address register
 	vbar uint32
 }
@@ -86,7 +91,11 @@ func (cpu *CPU) Init() {
 	goos.Exit = exit
 	goos.Idle = cpu.DefaultIdleGovernor
 
-	cpu.initFeatures()
+	// Skip feature detection on cores without VBAR (ARMv5/ARMv6 without
+	// VBAR support) as CP15 ID_PFR registers may not be reliable.
+	if !cpu.NoVBAR {
+		cpu.initFeatures()
+	}
 	cpu.initVectorTable()
 }
 
