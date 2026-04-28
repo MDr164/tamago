@@ -17,6 +17,7 @@ import (
 // Init takes care of the lower level initialization triggered before runtime
 // setup (pre World start).
 //
+//go:nosplit
 //go:linkname Init runtime/goos.Hwinit0
 func Init() {
 	if int(read_cpsr()&0x1f) != SYS_MODE {

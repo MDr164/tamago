@@ -22,5 +22,6 @@ import (
 // at pre-World start. Cores without VFP (e.g. ARM1176JZS on AST2500) would
 // fault on vfp_enable; softfloat Go code never issues VFP instructions.
 //
+//go:nosplit
 //go:linkname Init runtime/goos.Hwinit0
 func Init() {}

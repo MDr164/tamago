@@ -1,0 +1,400 @@
+# ASPEED AST2500 register definitions for TamaGo boot support.
+#
+# References:
+#   AST2500/AST2520 A2 Datasheet v1.8 (Jul 2020) — ast2500v18.md
+#   arm/goos: VIC at 0x1E6C0000, UART5 at 0x1E784000
+#
+# SDRAM is remapped to 0x00000000 by boot ROM via AHBC8C[0].
+# All MMIO peripherals remain at their original physical addresses.
+#
+# Only registers required for the minimal boot path are defined:
+# SCU (silicon rev, clocks, HW straps), UART5 (16550 console),
+# FTTMR010 timer (nanotime + scheduler tick), VIC (interrupt controller).
+
+# ---------------------------------------------------------------------------
+# SCU — System Control Unit
+# Base: 0x1E6E2000, Size: 4 KB  (identical base to AST2600)
+# ---------------------------------------------------------------------------
+
+block/Scu:
+  description: "AST2500 System Control Unit"
+  items:
+    - name: PROTECTION_KEY
+      description: "SCU00 Protection Key. Write 0x1688A8A8 to unlock; any other value to lock."
+      byte_offset: 0x000
+      access: ReadWrite
+      bit_size: 32
+
+    - name: SYSRST_CTRL1
+      description: "SCU04 System Reset Control Register 1."
+      byte_offset: 0x004
+      access: ReadWrite
+      bit_size: 32
+
+    - name: CLK_SEL1
+      description: "SCU08 Clock Selection Register 1."
+      byte_offset: 0x008
+      access: ReadWrite
+      bit_size: 32
+
+    - name: CLK_STOP1
+      description: "SCU0C Clock Stop Control Register 1. Write 1 to stop a peripheral clock. Bit15=UART5, Bit13=HACE."
+      byte_offset: 0x00C
+      access: ReadWrite
+      bit_size: 32
+      fieldset: ScuClkStop
+
+    - name: REV_ID
+      description: "SCU7C Silicon Revision ID Register. Bits[27:24]=chip generation, bits[23:16]=hardware revision."
+      byte_offset: 0x07C
+      access: Read
+      bit_size: 32
+      fieldset: ScuRevId
+
+    - name: HW_STRAP
+      description: "SCU70 Hardware Strap Register. Bits[11:10]=DRAM size, bits[9:8]=DRAM config, bits[7:6]=CPU speed."
+      byte_offset: 0x070
+      access: Read
+      bit_size: 32
+
+# ---------------------------------------------------------------------------
+# UART5 — 16550-compatible UART (BMC ARM console)
+# Base: 0x1E784000 (identical to AST2600)
+# ---------------------------------------------------------------------------
+
+block/Uart:
+  description: "16550-compatible UART (AST2500 UART5 console)"
+  items:
+    - name: RBR
+      description: "Receive Buffer Register (DLAB=0, read)."
+      byte_offset: 0x00
+      access: Read
+      bit_size: 32
+
+    - name: THR
+      description: "Transmitter Holding Register (DLAB=0, write)."
+      byte_offset: 0x00
+      access: Write
+      bit_size: 32
+
+    - name: IER
+      description: "Interrupt Enable Register (DLAB=0)."
+      byte_offset: 0x04
+      access: ReadWrite
+      bit_size: 32
+
+    - name: IIR
+      description: "Interrupt Identity Register (read). Bit0=0 means interrupt pending."
+      byte_offset: 0x08
+      access: Read
+      bit_size: 32
+
+    - name: FCR
+      description: "FIFO Control Register (write). Bit0=enable, Bit1=Rx reset, Bit2=Tx reset."
+      byte_offset: 0x08
+      access: Write
+      bit_size: 32
+
+    - name: LCR
+      description: "Line Control Register. Bits[1:0]=word length, bit7=DLAB."
+      byte_offset: 0x0C
+      access: ReadWrite
+      bit_size: 32
+
+    - name: MCR
+      description: "Modem Control Register."
+      byte_offset: 0x10
+      access: ReadWrite
+      bit_size: 32
+
+    - name: LSR
+      description: "Line Status Register. Bit0=RxReady, Bit5=TxHoldEmpty, Bit6=TxEmpty."
+      byte_offset: 0x14
+      access: Read
+      bit_size: 32
+      fieldset: UartLsr
+
+# ---------------------------------------------------------------------------
+# FTTMR010 Timer Controller
+# Base: 0x1E782000 (identical to AST2600)
+# ---------------------------------------------------------------------------
+
+block/Timer:
+  description: "AST2500 FTTMR010 Timer Controller. 8 decrement timers at 1 MHz."
+  items:
+    - name: T1_STATUS
+      description: "Timer 1 Counter Status (current countdown value)."
+      byte_offset: 0x00
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_RELOAD
+      description: "Timer 1 Counter Reload Value."
+      byte_offset: 0x04
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_MATCH1
+      description: "Timer 1 First Match Register. 0xFFFFFFFF disables."
+      byte_offset: 0x08
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T1_MATCH2
+      description: "Timer 1 Second Match Register. 0xFFFFFFFF disables."
+      byte_offset: 0x0C
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_STATUS
+      description: "Timer 2 Counter Status."
+      byte_offset: 0x10
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_RELOAD
+      description: "Timer 2 Counter Reload Value."
+      byte_offset: 0x14
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_MATCH1
+      description: "Timer 2 First Match Register."
+      byte_offset: 0x18
+      access: ReadWrite
+      bit_size: 32
+
+    - name: T2_MATCH2
+      description: "Timer 2 Second Match Register."
+      byte_offset: 0x1C
+      access: ReadWrite
+      bit_size: 32
+
+    - name: CTRL
+      description: "TMC30 Timer Control Register (W1S). 4 bits per timer: bit+0=en, bit+1=1MHz, bit+2=ovf_irq, bit+3=wdt. Timer1 at [3:0], Timer2 at [7:4]."
+      byte_offset: 0x30
+      access: ReadWrite
+      bit_size: 32
+      fieldset: TimerCtrl
+
+    - name: IRQ_STATUS
+      description: "TMC34 Timer Interrupt Status. Bit0=Timer1, Bit1=Timer2 (W1C)."
+      byte_offset: 0x34
+      access: ReadWrite
+      bit_size: 32
+
+    - name: CTRL_CLR
+      description: "TMC3C Timer Control Clear Register (W1C). Mirrors TMC30."
+      byte_offset: 0x3C
+      access: Write
+      bit_size: 32
+      fieldset: TimerCtrl
+
+# ---------------------------------------------------------------------------
+# VIC — Vectored Interrupt Controller
+# Base: 0x1E6C0000, 64 IRQ sources (AST2500)
+# ---------------------------------------------------------------------------
+
+block/Vic:
+  description: "AST2500 VIC interrupt controller. 64 IRQ sources. Legacy block covers IRQ0-31; New Mapping block at +0x80 covers all 64."
+  items:
+    # Legacy mapping (IRQ0-31)
+    - name: IRQ_STATUS
+      description: "VIC00 IRQ Status Register (active+enabled, IRQ0-31)."
+      byte_offset: 0x00
+      access: Read
+      bit_size: 32
+
+    - name: FIQ_STATUS
+      description: "VIC04 FIQ Status Register (IRQ0-31)."
+      byte_offset: 0x04
+      access: Read
+      bit_size: 32
+
+    - name: RAW_STATUS
+      description: "VIC08 Raw Interrupt Status (pre-mask, IRQ0-31)."
+      byte_offset: 0x08
+      access: Read
+      bit_size: 32
+
+    - name: INT_SELECT
+      description: "VIC0C Interrupt Selection. 0=IRQ, 1=FIQ (IRQ0-31)."
+      byte_offset: 0x0C
+      access: ReadWrite
+      bit_size: 32
+
+    - name: INT_ENABLE
+      description: "VIC10 Interrupt Enable (W1S, IRQ0-31). Write 1 to enable."
+      byte_offset: 0x10
+      access: ReadWrite
+      bit_size: 32
+
+    - name: INT_EN_CLEAR
+      description: "VIC14 Interrupt Enable Clear (W1C, IRQ0-31). Write 1 to disable."
+      byte_offset: 0x14
+      access: Write
+      bit_size: 32
+
+    - name: SOFT_INT
+      description: "VIC18 Software Interrupt (IRQ0-31)."
+      byte_offset: 0x18
+      access: ReadWrite
+      bit_size: 32
+
+    - name: SOFT_INT_CLR
+      description: "VIC1C Software Interrupt Clear (IRQ0-31)."
+      byte_offset: 0x1C
+      access: Write
+      bit_size: 32
+
+    - name: EDGE_INT_CLR
+      description: "VIC38 Edge-triggered Interrupt Clear (IRQ0-31)."
+      byte_offset: 0x38
+      access: Write
+      bit_size: 32
+
+    # New Mapping block (base+0x80) — covers all 64 IRQs in low/high pairs
+    - name: NEW_IRQ_STATUS_L
+      description: "VIC80 New Mapping IRQ Status Low (IRQ0-31)."
+      byte_offset: 0x80
+      access: Read
+      bit_size: 32
+
+    - name: NEW_IRQ_STATUS_H
+      description: "VIC84 New Mapping IRQ Status High (IRQ32-63)."
+      byte_offset: 0x84
+      access: Read
+      bit_size: 32
+
+    - name: NEW_INT_ENABLE_L
+      description: "VICA0 New Mapping Interrupt Enable Low (W1S, IRQ0-31)."
+      byte_offset: 0xA0
+      access: ReadWrite
+      bit_size: 32
+
+    - name: NEW_INT_ENABLE_H
+      description: "VICA4 New Mapping Interrupt Enable High (W1S, IRQ32-63)."
+      byte_offset: 0xA4
+      access: ReadWrite
+      bit_size: 32
+
+    - name: NEW_INT_EN_CLEAR_L
+      description: "VICA8 New Mapping Interrupt Enable Clear Low (W1C, IRQ0-31)."
+      byte_offset: 0xA8
+      access: Write
+      bit_size: 32
+
+    - name: NEW_INT_EN_CLEAR_H
+      description: "VICAC New Mapping Interrupt Enable Clear High (W1C, IRQ32-63)."
+      byte_offset: 0xAC
+      access: Write
+      bit_size: 32
+
+# ---------------------------------------------------------------------------
+# Fieldsets
+# ---------------------------------------------------------------------------
+
+fieldset/ScuRevId:
+  description: "SCU7C Silicon Revision ID"
+  bit_size: 32
+  fields:
+    - name: HW_REV
+      description: "Hardware revision. Bits[23:16]: hardware revision ID."
+      bit_offset: 16
+      bit_size: 8
+    - name: GEN
+      description: "Chip generation. Bits[27:24]."
+      bit_offset: 24
+      bit_size: 4
+
+fieldset/ScuClkStop:
+  description: "SCU0C Clock Stop Control Register 1"
+  bit_size: 32
+  fields:
+    - name: HACE
+      description: "HACE/RNG clock stop. 1=stopped."
+      bit_offset: 13
+      bit_size: 1
+    - name: UART5
+      description: "UART5 clock stop. 1=stopped."
+      bit_offset: 15
+      bit_size: 1
+
+fieldset/UartLsr:
+  description: "UART Line Status Register"
+  bit_size: 32
+  fields:
+    - name: RX_READY
+      description: "Receive data ready."
+      bit_offset: 0
+      bit_size: 1
+    - name: TX_HOLD_EMPTY
+      description: "Transmitter holding register empty. 1=safe to write."
+      bit_offset: 5
+      bit_size: 1
+    - name: TX_EMPTY
+      description: "Transmitter empty."
+      bit_offset: 6
+      bit_size: 1
+
+fieldset/TimerCtrl:
+  description: "FTTMR010 Timer Control Register"
+  bit_size: 32
+  fields:
+    - name: T1_EN
+      description: "Timer 1 enable."
+      bit_offset: 0
+      bit_size: 1
+    - name: T1_1MHZ
+      description: "Timer 1 use 1 MHz fixed clock."
+      bit_offset: 1
+      bit_size: 1
+    - name: T1_OVF_IRQ
+      description: "Timer 1 overflow interrupt enable."
+      bit_offset: 2
+      bit_size: 1
+    - name: T2_EN
+      description: "Timer 2 enable."
+      bit_offset: 4
+      bit_size: 1
+    - name: T2_1MHZ
+      description: "Timer 2 use 1 MHz fixed clock."
+      bit_offset: 5
+      bit_size: 1
+    - name: T2_OVF_IRQ
+      description: "Timer 2 overflow interrupt enable."
+      bit_offset: 6
+      bit_size: 1
+
+# ---------------------------------------------------------------------------
+# Device — AST2500 peripheral instances and interrupt assignments
+# ---------------------------------------------------------------------------
+
+device/Ast2500:
+  peripherals:
+    - name: SCU
+      description: "System Control Unit"
+      base_address: 0x1E6E2000
+      block: Scu
+    - name: UART5
+      description: "UART5 (ARM console, 16550-compatible)"
+      base_address: 0x1E784000
+      block: Uart
+    - name: TIMER
+      description: "Timer Controller (FTTMR010)"
+      base_address: 0x1E782000
+      block: Timer
+    - name: VIC
+      description: "Vectored Interrupt Controller (64 IRQs)"
+      base_address: 0x1E6C0000
+      block: Vic
+  interrupts:
+    - name: UART5
+      description: "UART5 (VIC IRQ 8)"
+      value: 8
+    - name: TIMER1
+      description: "Timer 1 overflow (VIC IRQ 16)"
+      value: 16
+    - name: TIMER2
+      description: "Timer 2 overflow (VIC IRQ 17)"
+      value: 17
