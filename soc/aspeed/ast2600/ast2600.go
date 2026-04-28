@@ -13,15 +13,19 @@
 // adopting the following reference specifications:
 //   - AST2600 A3 Datasheet v1.6 (Jul 2024)
 //
-// This package is only meant to be used with
-// `GOOS=tamago GOARCH=arm GOARM=7,softfloat -tags softfloat`
-// as supported by the TamaGo framework for bare metal Go, see
+// Build with:
+//
+//	GOOS=tamago GOARCH=arm GOARM=7,softfloat
+//
+// This package is only meant to be used with `GOOS=tamago GOARCH=arm` as
+// supported by the TamaGo framework for bare metal Go, see
 // https://github.com/usbarmory/tamago.
 package ast2600
 
 import (
 	"github.com/usbarmory/tamago/arm"
 	"github.com/usbarmory/tamago/arm/gic"
+	"github.com/usbarmory/tamago/soc/aspeed/uart"
 )
 
 // SiliconRevision holds the hardware revision read from SCU004 bits[23:16].
@@ -37,11 +41,16 @@ var GIC = &gic.GIC{
 	Base: GIC_BASE,
 }
 
-// SCU is the System Control Unit peripheral accessor.
+// SCU is the System Control Unit peripheral accessor (chiptool-generated type).
 var SCU = &Scu{Base: uintptr(SCU_BASE)}
 
-// UART5 is the primary console UART (16550-compatible).
-var UART5 = &Uart{Base: uintptr(UART5_BASE)}
+// UART5 is the primary console UART (16550-compatible, 115200-8N1).
+var UART5 = &uart.UART{
+	Index: 5,
+	Base:  UART5_BASE,
+}
 
-// TIMER is the Timer Controller peripheral accessor.
+// TIMER is the Timer Controller peripheral accessor (chiptool-generated type).
+// Uses the chiptool-generated Timer struct (Base uintptr) for nanotime since
+// nanotime is called before Go world start and must use only static initialization.
 var TIMER = &Timer{Base: uintptr(TIMER_BASE)}
