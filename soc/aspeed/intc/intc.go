@@ -31,7 +31,6 @@ import (
 )
 
 // VIC register offsets from base address (0x1E6C0000).
-// Source: AST2400 datasheet §VIC, AST2500 datasheet §VIC.
 const (
 	// Legacy mapping — IRQ0–31 only.
 	irqStatus    = 0x00 // IRQ Status (active + enabled)

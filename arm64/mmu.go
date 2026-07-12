@@ -111,6 +111,7 @@ func (cpu *CPU) initL1Table(entry int, ttbr uint64, section uint64) {
 	n := 30 // 1GB
 
 	ramStart, ramEnd := runtime.MemRegion()
+
 	_, textEnd := runtime.TextRegion()
 
 	memoryRegion := memoryAttributes | TTE_BLOCK
@@ -119,6 +120,9 @@ func (cpu *CPU) initL1Table(entry int, ttbr uint64, section uint64) {
 	for i := uint64(entry); i < l1pageTableSize; i++ {
 		page := ttbr + 8*i
 		addr := section + (i << n)
+
+		// Write loop index to scratch so BootMCU can see which
+		// L1 entry the CA35 was processing when it crashed.
 
 		switch {
 		case addr < textEnd && (addr+(1<<n)) > textEnd:
@@ -155,6 +159,7 @@ func (cpu *CPU) initL2Table(entry int, base uint64, section uint64) {
 		page := base + 8*i
 		addr := section + (i << n)
 
+
 		switch {
 		case addr < textEnd && (addr+(1<<n)) > textEnd:
 			// skip first L3 table, reserved to trap null pointers
@@ -173,6 +178,7 @@ func (cpu *CPU) initL2Table(entry int, base uint64, section uint64) {
 			reg.Write64(page, addr|deviceRegion|TTE_EXECUTE_NEVER)
 		}
 	}
+
 }
 
 // ARM Architecture Reference Manual ARMv8, for ARMv8-A architecture profile

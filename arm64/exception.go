@@ -24,8 +24,21 @@ const (
 // defined in exception.s
 func set_vbar(addr uint64)
 func read_el() uint64
+func read_far() uint64
+func read_esr() uint64
 func handleException()
 func handleInterrupt()
+
+// FaultAddress returns the contents of FAR_EL1, the faulting virtual address
+// recorded for the most recent synchronous exception.
+func FaultAddress() uint64 { return read_far() }
+
+// ExceptionSyndrome returns the contents of ESR_EL1, the syndrome (cause) of
+// the most recent synchronous exception.
+func ExceptionSyndrome() uint64 { return read_esr() }
+
+// ExceptionLevel returns the current exception level (CurrentEL[3:2]).
+func ExceptionLevel() int { return int(read_el()&0b1100) >> 2 }
 
 type exceptionHandler func()
 

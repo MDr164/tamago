@@ -1,7 +1,6 @@
 # ASPEED AST2500 register definitions for TamaGo boot support.
 #
 # References:
-#   AST2500/AST2520 A2 Datasheet v1.8 (Jul 2020) — ast2500v18.md
 #   arm/goos: VIC at 0x1E6C0000, UART5 at 0x1E784000
 #
 # SDRAM is remapped to 0x00000000 by boot ROM via AHBC8C[0].

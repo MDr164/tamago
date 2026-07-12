@@ -41,7 +41,7 @@ func EnableHACEClock() {
 // HW_STRAP1 (SCU500) bits [10:8].
 //
 // The frequency is used to program the ARM generic timer CNTFRQ register.
-// (AST2600 datasheet, SCU500 register description)
+//
 func CPUFreqHz() uint32 {
 	strap := SCU.ReadHWSTRAP1()
 	sel := (strap >> 8) & 0x7
